@@ -4,6 +4,8 @@ import plotly.express as px
 from io import BytesIO
 from streamlit_autorefresh import st_autorefresh
 from datetime import datetime
+import numpy as np
+
 
 st.set_page_config(page_title="Dashboard SAC", layout="wide")
 
@@ -48,22 +50,18 @@ div.stButton > button:hover {
 st.markdown("""
 <style>
 
-/* fondo general */
 .main {
     background-color: #0f1116;
 }
 
-/* sidebar */
 section[data-testid="stSidebar"] {
     background-color: #161a24;
 }
 
-/* títulos */
 h1, h2, h3 {
     color: #8f5cda;
 }
 
-/* métricas */
 div[data-testid="metric-container"] {
     background-color: #161a24;
     border: 1px solid #2a2f3a;
@@ -71,18 +69,15 @@ div[data-testid="metric-container"] {
     border-radius: 10px;
 }
 
-/* tabla */
 [data-testid="stDataFrame"] {
     border-radius: 10px;
 }
 
-/* hover botón */
 div.stButton > button:hover {
     transform: scale(1.02);
     transition: 0.2s;
 }
 
-/* sidebar labels */
 label {
     color: #cfd8ff !important;
 }
@@ -127,6 +122,29 @@ def cargar_datos():
 df = cargar_datos()
 
 df["FechaCreacion"] = pd.to_datetime(df["FechaCreacion"], errors="coerce")
+
+# -----------------------
+# CALCULO DE DIAS PARA CIERRE
+# -----------------------
+
+hoy = np.datetime64(pd.Timestamp.today().normalize(), 'D')
+
+df["Dias para Cierre"] = np.busday_count(
+    df["FechaCreacion"].values.astype("datetime64[D]"),
+    hoy
+)
+
+# -----------------------
+# SEMAFORO POR DIAS
+# -----------------------
+
+df["Semaforo_Dias"] = pd.cut(
+    df["Dias para Cierre"],
+    bins=[-999,5,10,999],
+    labels=["🟢 En tiempo","🟡 En riesgo","🔴 Vencido"]
+)
+
+# -----------------------
 
 st.caption(f"Última actualización del dashboard: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
@@ -212,6 +230,22 @@ col4.metric("Promedio días cierre", promedio_cierre)
 st.divider()
 
 # -----------------------
+# INDICADORES SEMAFORO
+# -----------------------
+
+verdes = len(df[df["Semaforo_Dias"]=="🟢 En tiempo"])
+amarillos = len(df[df["Semaforo_Dias"]=="🟡 En riesgo"])
+rojos = len(df[df["Semaforo_Dias"]=="🔴 Vencido"])
+
+colA, colB, colC = st.columns(3)
+
+colA.metric("🟢 Tickets en tiempo", verdes)
+colB.metric("🟡 Tickets en riesgo", amarillos)
+colC.metric("🔴 Tickets vencidos", rojos)
+
+st.divider()
+
+# -----------------------
 # TABLA DETALLE
 # -----------------------
 
@@ -228,10 +262,15 @@ columnas_tabla = [
     "Dias para Cierre",
     "Creador_gestion",
     "Responsable",
-    "Fecha Asignación"
+    "Fecha Asignación",
+    "Descripción"
 ]
 
 tabla = df[columnas_tabla]
+
+tabla["FechaCreacion"] = pd.to_datetime(
+    tabla["FechaCreacion"], errors="coerce"
+).dt.strftime("%d-%m-%Y")
 
 tabla["Fecha Asignación"] = pd.to_datetime(
     tabla["Fecha Asignación"], errors="coerce"
