@@ -1,13 +1,23 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import plotly.express as px
 from io import BytesIO
 from streamlit_autorefresh import st_autorefresh
 from datetime import datetime
 import numpy as np
+import requests
 
 
 st.set_page_config(page_title="Dashboard SAC", layout="wide")
+
+# -----------------------
+# MENU DASHBOARD
+# -----------------------
+
+dashboard = st.selectbox(
+    "Seleccionar Dashboard",
+    ["Gestión Escalamiento", "Gestión Casos Cerrados"]
+)
 
 # -----------------------
 # PALETA DE COLORES
@@ -92,7 +102,11 @@ label {
 col_title, col_button = st.columns([9,1])
 
 with col_title:
-    st.title("Dashboard Gestión SAC")
+    
+    if dashboard == "Gestión Escalamiento":
+        st.title("Dashboard Gestión Escalamiento")
+    else:
+        st.title("Dashboard Casos Cerrados")
 
 with col_button:
     if st.button("🔄 Actualizar"):
@@ -114,12 +128,42 @@ st_autorefresh(
 
 url_excel = "https://suncompanycol-my.sharepoint.com/personal/sac_dispower_co/_layouts/15/download.aspx?share=IQD470ahen_KQa7HKVzXNh_EAa_2TzrHt1M9hOShRFYbwaM&e=mDU1fU"
 
-@st.cache_data
-def cargar_datos():
-    df = pd.read_excel(url_excel, sheet_name="Consolidado", engine="openpyxl")
-    return df
 
-df = cargar_datos()
+@st.cache_data(ttl=3600)
+def cargar_datos():
+
+    response = requests.get(url_excel)
+
+    archivo = BytesIO(response.content)
+
+    df_abiertos = pd.read_excel(
+        archivo,
+        sheet_name="Consolidado",
+        engine="openpyxl"
+    )
+
+    archivo.seek(0)
+
+    df_cerrados = pd.read_excel(
+        archivo,
+        sheet_name="Casos_Cerrados",
+        engine="openpyxl"
+    )
+
+    return df_abiertos, df_cerrados
+
+
+df_abiertos, df_cerrados = cargar_datos()
+
+# -----------------------
+# SELECCIÓN DATAFRAME
+# -----------------------
+
+if dashboard == "Gestión Escalamiento":
+    df = df_abiertos.copy()
+else:
+    df = df_cerrados.copy()
+
 
 df["FechaCreacion"] = pd.to_datetime(df["FechaCreacion"], errors="coerce")
 
@@ -187,8 +231,8 @@ fecha = st.sidebar.date_input(
 canal = st.sidebar.multiselect(
     "Canal",
     df["canal"].dropna().unique()
-)
 
+)
 # aplicar filtros
 
 if seccional:
