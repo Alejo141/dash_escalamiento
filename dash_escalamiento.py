@@ -306,7 +306,7 @@ st.divider()
 # GRAFICA POR SUBMENU1
 # -----------------------
 
-st.subheader("Tickets por SubMenu1")
+st.subheader("Tickets por Tipificación")
 
 tickets_submenu1 = df.groupby("SubMenu1").size().reset_index(name="Tickets")
 
